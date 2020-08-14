@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<!-- three.js library -->
+<script src='/assets/bulid/three.min.js'></script>
+<script src="/assets/bulid/stats.js"></script>
+<script src="/assets/bulid/ColladaLoader.js"></script>
+<!-- <script src="/assets/bulid/MTLLoader.js"></script>
+<script src="/assets/bulid/OBJLoader.js"></script> -->
+<!-- ar.js -->
+<script src="/assets/bulid/ar.js"></script>
+
+
+<style>
+</style>
+
+<body style='margin : 0px; overflow: hidden; font-family: Monospace;transform:translate3d(0,0,0);'>
+    <div id="container"></div>
+    <script>
+        //呈现循环的函数数组
+        var onRenderFcts = [];
+        var scene;
+        var arToolkitSource, arToolkitContext;
+        var renderer
+        var stats
+        var mixer, clock;
+
+        init()
+        ARnode()
+        function init() {
+            let container = document.getElementById('container');
+
+            renderer = new THREE.WebGLRenderer({
+                antialias: true, //开启抗锯齿
+                alpha: true //开启背景透明
+            });
+            renderer.setClearColor(new THREE.Color('lightgrey'), 0);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.domElement.style.position = 'absolute';
+            renderer.domElement.style.top = '0px';
+            renderer.domElement.style.left = '0px';
+            container.appendChild(renderer.domElement);
+            // 初始化场景
+            scene = new THREE.Scene();
+            //1方向光(也称为无限光)
+            var light = new THREE.DirectionalLight(0xffffff, 1.0);
+            //位置不同，方向光作用于物体的面也不同，看到的物体各个面的颜色也不同
+            light.position.set(0, 30, 40);
+            light.castShadow = true; // 启用阴影选项
+            scene.add(light);
+            //2环境光设置
+            var ambilight = new THREE.AmbientLight(0xffffff, 0.2);
+            scene.add(ambilight);
+            // 初始化摄像机位置(0，0，0)
+            camera = new THREE.Camera();
+            scene.add(camera);
+            window.addEventListener('resize', function() {
+                onResize()
+            })
+            stats = new Stats();
+            console.log(stats)
+            container.appendChild(stats.domElement);
+            //Clock对象的构造函数.用来记录时间
+            clock = new THREE.Clock();
+        }
+
+        function ARnode() {
+            // 被分析以进行位置跟踪的图像。它可以是网络摄像头，视频甚至是图像
+            arToolkitSource = new THREEx.ArToolkitSource({})
+            arToolkitSource.init(function onReady() {
+                onResize()
+            })
+            //#####
+            //这是主要引擎。它实际上会在图像源中找到标记位置。
+            arToolkitContext = new THREEx.ArToolkitContext({
+                //摄像机参数文件
+                cameraParametersUrl: '/assets/data/camera_para.dat',
+                detectionMode: 'mono',
+            })
+            arToolkitContext.init(function onCompleted() {
+                // 复制投影矩阵到相机
+                camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
+            })
+            //每帧更新artoolkit
+            onRenderFcts.push(function() {
+                if (arToolkitSource.ready === false) return
+                // 更新场景。如果可以看到标记，则可见
+                arToolkitContext.update(arToolkitSource.domElement)
+                scene.visible = camera.visible
+            })
+            //控制标记的位置。
+            var markerControls = new THREEx.ArMarkerControls(arToolkitContext, camera, {
+                type: 'pattern',
+                patternUrl: '/assets/arcode/marker89.td',
+                changeMatrixMode: 'cameraTransformMatrix'
+            })
+            scene.visible = false;
+            onRenderFcts.push(function(delta) {});
+            onRenderFcts.push(function() {
+                renderer.render(scene, camera);
+            });
+        }
+
+        var lastTimeMsec = null
+        requestAnimationFrame(function animate(nowMsec) {
+            requestAnimationFrame(animate);
+            lastTimeMsec = lastTimeMsec || nowMsec - 1000 / 60
+            var deltaMsec = Math.min(200, nowMsec - lastTimeMsec)
+            lastTimeMsec = nowMsec
+            onRenderFcts.forEach(
+                function(onRenderFct) {
+                    onRenderFct(deltaMsec / 1000, nowMsec / 1000)
+                })
+            stats.update();
+            var delta = clock.getDelta();
+            if (mixer !== undefined) {
+                mixer.update(delta);
+            }
+        })
+
+        /**加载模型 */
+
+        var loader = new THREE.ColladaLoader();
+        loader.load('/assets/stormtrooper/stormtrooper.dae', function(collada) {
+            var animations = collada.animations;
+            var avatar = collada.scene;
+            avatar.traverse(function(node) {
+                if (node.isSkinnedMesh) {
+                    node.frustumCulled = false;
+                }
+            });
+            avatar.scale.set(0.5, 0.5, 0.5);
+            mixer = new THREE.AnimationMixer(avatar);
+            var action = mixer.clipAction(animations[0]).play();
+            scene.add(avatar);
+        });
+        /**加载不同的模型 */
+        // var onProgress = function(xhr) {
+        //     if (xhr.lengthComputable) {
+        //         let percentComplete = xhr.loaded / xhr.total * 100;
+        //         console.log(Math.round(percentComplete, 2) + '% downloaded');
+        //     }
+        // };
+        // var onError = function(xhr) {};
+        // var mtlLoader = new THREE.MTLLoader();
+        // mtlLoader.setPath('/assets/obj/');
+        // mtlLoader.load('jj.mtl', function(materials) {
+        //     materials.preload();
+        //     var objLoader = new THREE.OBJLoader();
+        //     objLoader.setMaterials(materials);
+        //     objLoader.setPath('/assets/obj/');
+        //     objLoader.load('jj.obj', function(object) {
+        //         let obj = object;
+        //         scene.add(object);
+        //         object.position.set(0, 0, 0);
+        //         object.scale.set(0.001, 0.001, 0.001);
+        //         var axes = new THREE.AxisHelper(10);
+        //         scene.add(axes);
+        //     }, onProgress, onError);
+
+        // });
+        /** */
+        function onResize() {
+            arToolkitSource.onResize()
+            arToolkitSource.copySizeTo(renderer.domElement)
+            if (arToolkitContext.arController !== null) {
+                arToolkitSource.copySizeTo(arToolkitContext.arController.canvas)
+            }
+        }
+    </script>
+</body>
