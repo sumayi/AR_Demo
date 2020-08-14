@@ -6,7 +6,7 @@
  * @Description: (| -_- |)
  * @FilePath: \cloud_serverg:\mySelf\myself\vueTest\views\ARTest\README.md
 -->
-# WebARDemo
+# Web AR_Demo
 ## 1.WebAR Demo based on three.js+ar.js
 ## 2.ARcode in the PDF folder 
 ## 3.If you need communication, you can contact me. My e-mail address is jingrf@qq.com. 
